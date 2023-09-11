@@ -1,35 +1,77 @@
 from tkinter import *
 from PIL import ImageTk,Image
-
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+import threading
+import time
 
 # some global variables
 roles = ["Python Developer","Frontend Developer","Django Developer","MERN Developer","MEAN Developer","Android Developer","Software Developer","Ethical Hacker","Database Administrator", " Network Engineer"]
 current_question = 0
 questions = []
 
+# get api key from ApiKey.txt
+apiKey = ""
+with open("ApiKey.txt",'r') as f:
+    apiKey = f.readline()
+    apiKey = apiKey.strip()
+
+# function to bring questions
+def get_questions():
+    global questions
+    # create model to predict
+    llm = OpenAI(openai_api_key=apiKey)
+    # Prompt template for getting questions
+    prompt_search_questions = PromptTemplate.from_template("Provide minimum 15 interview questions for {role} for {experience} candidate?")
+    # format template to final prompt
+    questions = prompt_search_questions.format(role = role.get(), experience = experience.get())
+    # Getting output of prompt 
+    questions_output = llm.predict(questions)
+
+    # convert questions from string to list
+    questions_output = questions_output.strip()
+    questions_output = questions_output.split("\n")
+    questions_lst = []
+    for i in questions_output:
+        i = i.split('. ')
+        questions_lst.append(i[1])
+
+    # remove f1 => home screeen 
+    f1.forget()
+    # update question list 
+    questions = questions_lst
+    # show new frame for question page 
+    f2.pack(fill=BOTH)
+    # call next question function to render question
+    next_question()
 
 # this function clear f1 frame
 def clear_frame():
     for widget in f1.winfo_children():
         widget.destroy()
 
+# this function render new question
 def next_question():
+    global current_question
+    print(questions)
     if current_question<len(questions):
-
+        user_question.set(f'Question : {questions[current_question]}')
         current_question+=1
 
+# this function handle mic click 
 def mic_clicked(temp=None):
     if recording_btn.cget('text') == "Start Recording":
         recording_btn.config(text="Stop Recording", background='#d93b3b')
     else:
         recording_btn.config(text="Start Recording", background='#2c70e6')
 
+# function to start interview 
 def start_interview():
     global mic
     print(role.get())
     print(experience.get())
-    f1.forget()
-    f2.pack(fill=BOTH)
+    # calling this function with thread to avoid freezing of screen
+    threading.Thread(target=get_questions).start()
 
 if __name__ == "__main__":
     root = Tk()
@@ -41,7 +83,7 @@ if __name__ == "__main__":
     # define Variables 
     role = StringVar(value=roles[0])
     experience = StringVar(value="Fresher")
-    user_question = StringVar(value="")
+    user_question = StringVar(value="nothing")
     user_answer = StringVar(value="")
 
     # Main headings 
@@ -83,7 +125,7 @@ if __name__ == "__main__":
     # frame 2 is second page(question page)
     f2 = Frame(root)
     # lable to show question
-    Label(f2,text=f"Question : {user_question.get()}",padx=15,font="calibre 15 normal").pack()
+    Label(f2,textvariable=user_question,padx=15,font="calibre 15 normal").pack()
     # show mic image and set onclick event
     mic = ImageTk.PhotoImage(Image.open('mic.png'), height=20, width= 20)
     mic_lable = Label(f2, image=mic)

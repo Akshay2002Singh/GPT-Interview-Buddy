@@ -36,7 +36,7 @@ def process_speech_to_text_queue():
 
 
 def record_audio():
-    print("in record funcion")
+    print("in record function")
     index = 0
     while(1):
         try:
