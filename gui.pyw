@@ -1,4 +1,6 @@
 from tkinter import *
+from PIL import ImageTk,Image
+
 
 # some global variables
 roles = ["Python Developer","Frontend Developer","Django Developer","MERN Developer","MEAN Developer","Android Developer","Software Developer","Ethical Hacker","Database Administrator", " Network Engineer"]
@@ -15,16 +17,19 @@ def next_question():
     if current_question<len(questions):
 
         current_question+=1
-        
 
+def mic_clicked(temp=None):
+    if recording_btn.cget('text') == "Start Recording":
+        recording_btn.config(text="Stop Recording", background='#d93b3b')
+    else:
+        recording_btn.config(text="Start Recording", background='#2c70e6')
 
 def start_interview():
+    global mic
     print(role.get())
     print(experience.get())
-    clear_frame()
-    Label(f1,text=f"Question : {user_question.get()}",padx=15,font="calibre 15 normal").pack()
-
-    next_button.pack()
+    f1.forget()
+    f2.pack(fill=BOTH)
 
 if __name__ == "__main__":
     root = Tk()
@@ -49,6 +54,7 @@ if __name__ == "__main__":
     f1.pack(fill=BOTH)
 
     # Inserting options to select role
+    # frame 1 is home page 
     Label(f1,text="Select Your Role",font="calibre 20 bold",fg="black",bg='#bcecf5', relief='sunken' , pady=2).pack(side=TOP, ipady=5, ipadx=8)
     i = 0
     while(i<len(roles)):
@@ -72,8 +78,21 @@ if __name__ == "__main__":
     start_button = Button(f1,text="Start Interview",command=start_interview,font="calibre 17 bold")
     start_button.pack()
 
-    # this will be rendered later
-    next_button = Button(root,text="Next Question",command=next_question,font="calibre 17 bold")
 
+    # this will be rendered later
+    # frame 2 is second page(question page)
+    f2 = Frame(root)
+    # lable to show question
+    Label(f2,text=f"Question : {user_question.get()}",padx=15,font="calibre 15 normal").pack()
+    # show mic image and set onclick event
+    mic = ImageTk.PhotoImage(Image.open('mic.png'), height=20, width= 20)
+    mic_lable = Label(f2, image=mic)
+    mic_lable.bind("<Button-1>", mic_clicked)
+    mic_lable.pack(ipady=15)
+    recording_btn = Button(f2,text="Start Recording", command=mic_clicked, font="calibre 17 bold",borderwidth=2, background='#2c70e6', fg='#edfa00')
+    recording_btn.pack()
+    Label(f2,text="").pack()
+    next_button = Button(f2,text="Next Question",command=next_question,font="calibre 17 bold")
+    next_button.pack()
 
     root.mainloop()
