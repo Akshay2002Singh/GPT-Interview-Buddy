@@ -15,12 +15,14 @@ from gtts import gTTS
 from playsound import playsound
 import os
 import time
+import json
 
 # some global variables
 roles = ["Python Developer","Frontend Developer","Django Developer","MERN Developer","MEAN Developer","Android Developer","Software Developer","Ethical Hacker","Database Administrator", " Network Engineer"]
 current_question = 0
 questions = []
 answer_feedback = {}
+user_score_obj = {}
 user_score = 0
 # queue to store speech recognition object and speech clips
 speech_queue = queue.SimpleQueue()
@@ -32,37 +34,42 @@ with open("ApiKey.txt",'r') as f:
     apiKey = apiKey.strip()
 
 # function to bring questions
-def get_questions():
+def get_questions(attempt=0):
     global questions
     # create model to predict
-    llm = OpenAI(openai_api_key=apiKey)
-    # Prompt template for getting questions
-    prompt_search_questions = PromptTemplate.from_template("Provide minimum 15 interview questions for {role} for {experience} candidate?")
-    # format template to final prompt
-    questions = prompt_search_questions.format(role = role.get(), experience = experience.get())
-    # Getting output of prompt 
-    questions_output = llm.predict(questions)
+    if attempt > 5:
+        return
+    try:
+        llm = OpenAI(openai_api_key=apiKey)
+        # Prompt template for getting questions
+        prompt_search_questions = PromptTemplate.from_template("Provide minimum 2 interview questions for {role} for {experience} candidate?")
+        # format template to final prompt
+        questions = prompt_search_questions.format(role = role.get(), experience = experience.get())
+        # Getting output of prompt 
+        questions_output = llm.predict(questions)
 
-    # convert questions from string to list
-    questions_output = questions_output.strip()
-    questions_output = questions_output.split("\n")
-    questions_lst = []
-    for i in questions_output:
-        i = i.split('. ')
-        questions_lst.append(i[1])
-
-    # remove f1 => home screeen 
-    f1.forget()
-    # update question list 
-    questions = questions_lst
-    # show new frame for question page 
-    f2.pack(fill=BOTH)
-    # call next question function to render question
-    next_question()
+        # convert questions from string to list
+        questions_output = questions_output.strip()
+        questions_output = questions_output.split("\n")
+        questions_lst = []
+        for i in questions_output:
+            i = i.split('. ')
+            questions_lst.append(i[1])
+        print(questions_lst)
+        # remove f1 => home screeen 
+        f1.forget()
+        # update question list 
+        questions = questions_lst
+        # show new frame for question page 
+        f2.pack(fill=BOTH)
+        # call next question function to render question
+        next_question()
+    except:
+        get_questions(attempt+1)
 
 # this function convert text to speech 
 def text_to_speech(text, try_count = 0):
-    if try_count > 8:
+    if try_count > 6:
         return
     try:
         speech = gTTS(text = text, lang='en', tld='co.in')
@@ -74,39 +81,46 @@ def text_to_speech(text, try_count = 0):
         time.sleep(0.2)
         text_to_speech(text, try_count+1)
 
-def score_answer(question_number, answer):
+def score_answer(question_number, answer, attempt=0):
     global user_score
     global answer_feedback
-    # create model to predict
-    chat = ChatOpenAI(openai_api_key=apiKey)
-
-    # Prompt templates to get score of answer
-    system_template = (
-        '''
-        You are an interviewer, taking interview for {role} of a {experience} candidate.
-        Question : {question}
-        '''
-    )
-    system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
-    human_template = "Answer : {answer}"
-    human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
-    system_template_1 = "Rate this answer from 0 to 10 and provide score and feedback in json format."
-    system_message_prompt_1 = SystemMessagePromptTemplate.from_template(system_template_1)
-
-    # create final chat prompt 
-    chat_prompt = ChatPromptTemplate.from_messages(
-        [system_message_prompt, human_message_prompt, system_message_prompt_1]
-    )
-
-    # Getting output of prompt 
-    score_feedback = chat(
-        chat_prompt.format_prompt(
-            role = role.get(), experience=experience.get(), question=questions[question_number], answer = answer
-        ).to_messages()
-    )
+    global user_score_obj
+    if attempt > 3:
+        return
     
-    user_score += score_feedback["score"]
-    answer_feedback[question_number] = score_feedback['feedback']
+    try:
+        # create model to predict
+        chat = ChatOpenAI(openai_api_key=apiKey)
+
+        # Prompt templates to get score of answer
+        system_template = (
+            '''
+            You are an interviewer, taking interview for {role} of a {experience} candidate.
+            Question : {question}
+            '''
+        )
+        system_message_prompt = SystemMessagePromptTemplate.from_template(system_template)
+        human_template = "Answer : {answer}"
+        human_message_prompt = HumanMessagePromptTemplate.from_template(human_template)
+        system_template_1 = "Rate this answer from 0 to 10 and provide score and feedback in json format."
+        system_message_prompt_1 = SystemMessagePromptTemplate.from_template(system_template_1)
+        # create final chat prompt 
+        chat_prompt = ChatPromptTemplate.from_messages(
+            [system_message_prompt, human_message_prompt, system_message_prompt_1]
+        )
+        # Getting output of prompt 
+        score_feedback = chat(
+            chat_prompt.format_prompt(
+                role = role.get(), experience=experience.get(), question=questions[question_number], answer = answer
+            ).to_messages()
+        )
+        score_feedback = json.loads(score_feedback.content)
+        user_score += int(score_feedback["score"])
+        answer_feedback[question_number] = score_feedback['feedback']
+        user_score_obj[question_number] = score_feedback['score']
+    except:
+        score_answer(question_number,answer,attempt+1)
+    
 
 # this function read queue, if it has any clips then convert it to text
 def process_speech_to_text_queue():
@@ -152,18 +166,11 @@ def record_audio():
             print("unknown error occurred")
 
 
-# this function clear f1 frame
-def clear_frame():
-    for widget in f1.winfo_children():
-        widget.destroy()
-
-def show_result():
-    pass
 # this function render new question
 def next_question():
     global current_question
-    # if current_question <= len(questions) and current_question > 0:
-        # threading.Thread(target=score_answer, args=[current_question-1,user_answer.get(),])
+    if current_question <= len(questions) and current_question > 0:
+        threading.Thread(target=score_answer, args=[current_question-1,user_answer.get(),]).start()
     
     # print(user_answer.get())
     user_answer.set("")
@@ -189,12 +196,47 @@ def next_question():
     else:
         show_result()
 
+def show_result():
+    while(len(answer_feedback.keys()) != len(questions)):
+        time.sleep(1)
+    global current_question
+    current_question = 0
+    f2.forget()
+    f3.pack()
+    resultPage_total_score.set(f"Your Total Score : {user_score}/{len(questions)*10}")
+    resultPage_current_score.set(f"Current Question Score : {user_score_obj[current_question]}/10")
+    resultPage_question.set(f"Question {current_question+1} : {questions[current_question]}")
+    resultPage_feedback.set(f"Feedback : {answer_feedback[current_question]}")
+    feedback_previous_btn['state'] = 'disable'
+
+def previous_feedback():
+    global current_question
+    if feedback_next_btn['state'] == 'disabled':
+        feedback_next_btn['state'] = 'normal'
+    current_question -= 1
+    resultPage_current_score.set(f"Current Question Score : {user_score_obj[current_question]}/10")
+    resultPage_question.set(f"Question {current_question+1} : {questions[current_question]}")
+    resultPage_feedback.set(f"Feedback : {answer_feedback[current_question]}")
+    if(current_question == 0):
+        feedback_previous_btn['state'] = 'disabled'
+
+def next_feedback():
+    global current_question
+    if feedback_previous_btn['state'] == 'disabled':
+        feedback_previous_btn['state'] = 'normal'
+    current_question += 1
+    resultPage_current_score.set(f"Current Question Score : {user_score_obj[current_question]}/10")
+    resultPage_question.set(f"Question {current_question+1} : {questions[current_question]}")
+    resultPage_feedback.set(f"Feedback : {answer_feedback[current_question]}")
+    if( current_question == (len(questions)-1) ):
+        feedback_next_btn['state'] = 'disabled'
+
 # check_current answer and show next question
 def check_and_call_next():
     threading.Thread(target=next_question).start()
 
 # this function handle mic click 
-def mic_clicked(temp=None):
+def mic_clicked(temp = None):
     if recording_btn.cget('text') == "Start Recording":
         # set flag to true, to start recording 
         record_users_answer.set(True)
@@ -214,6 +256,7 @@ def mic_clicked(temp=None):
 def start_interview():
     global mic
     # calling this function with thread to avoid freezing of screen
+    start_button["state"] = "disabled"
     threading.Thread(target=get_questions).start()
 
 if __name__ == "__main__":
@@ -229,6 +272,11 @@ if __name__ == "__main__":
     user_question = StringVar(value="nothing")
     user_answer = StringVar(value="")
     record_users_answer = BooleanVar(value=False)
+    # Variable of result page 
+    resultPage_current_score = StringVar(value="")
+    resultPage_total_score = StringVar(value="")
+    resultPage_question = StringVar(value="")
+    resultPage_feedback = StringVar(value="")
 
     # Main headings 
     Label(root,text="GPT Interview Buddy",font="calibre 30 bold").pack()
@@ -277,5 +325,24 @@ if __name__ == "__main__":
     recording_btn = Button(f2,text="Start Recording", command=mic_clicked, font="calibre 17 bold",borderwidth=2, background='#2c70e6', fg='#edfa00')
     space1 = Label(f2,text="")
     next_button = Button(f2,text="Next Question",command=check_and_call_next,font="calibre 17 bold")
+
+    # this page will be rendered later
+    # frame 3 is third page(Result page)
+    f3 = Frame(root)
+    Label(f3,textvariable=resultPage_total_score,font="calibre 22 bold").pack(pady=5)
+    Label(f3,textvariable=resultPage_question, font="calibre 17 bold" ,wraplength=750).pack(pady=5)
+    Label(f3,textvariable=resultPage_current_score,font="calibre 14 bold").pack()
+    Label(f3,textvariable=resultPage_feedback,font="calibre 14 normal",wraplength=750).pack(pady=5)
+    temp_f3 = Frame(f3)
+    temp_f3.pack(pady=20)
+    feedback_previous_btn =  Button(temp_f3,text="Previous Question",command=previous_feedback,font="calibre 17 bold",width=18,background='#b3fbfc')
+    feedback_previous_btn.pack(side=LEFT)
+    Label(temp_f3,text="\t \t \t \t").pack(side=LEFT)
+    feedback_next_btn = Button(temp_f3,text="Next Question",command=next_feedback,font="calibre 17 bold",width=18,background='#b3fbfc')
+    feedback_next_btn.pack(side=RIGHT)
+
+    Button(f3,text="Home Page",command=quit,font="calibre 17 bold",width=20,background='#f3b5ff').pack(side=TOP)
+    Label(f3,text="").pack(pady=2)
+    Button(f3,text="Quit",command=quit,font="calibre 17 bold",width=20,bg='#f3b5ff').pack(side=TOP)
 
     root.mainloop()
