@@ -8,6 +8,7 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
+import openai
 import speech_recognition as sr
 import queue
 import threading
@@ -21,33 +22,62 @@ import speedtest
 # some global variables
 roles = ["Python Developer","Frontend Developer","Django Developer","MERN Developer","MEAN Developer","Android Developer","Software Developer","Ethical Hacker","Database Administrator", " Network Engineer"]
 current_question = 0
-questions = []
+questions = ["Tell me something about Yourself?"]
 answer_feedback = {}
 user_score_obj = {}
 user_score = 0
 # queue to store speech recognition object and speech clips
 speech_queue = queue.SimpleQueue()
 
-# get api key from ApiKey.txt
-apiKey = ""
-with open("ApiKey.txt",'r') as f:
-    apiKey = f.readline()
-    apiKey = apiKey.strip()
 
-# function to bring questions
-def get_questions(attempt=0):
+# function to bring general questions
+def get_general_questions(attempt=0):
+    global questions
+    # create model to predict
+    if attempt > 1:
+        return
+    try:
+        llm = OpenAI(openai_api_key=apiKey.get())
+        # Prompt template for getting questions
+        prompt_search_questions = PromptTemplate.from_template("Provide minimum 6 interview questions based on dsa and basic coding for {experience} candidate?")
+        # format template to final prompt
+        llm_questions = prompt_search_questions.format(experience = experience.get())
+        # Getting output of prompt 
+        questions_output = llm.predict(llm_questions)
+
+        # convert questions from string to list
+        questions_output = questions_output.strip()
+        questions_output = questions_output.split("\n")
+        questions_lst = []
+        for i in questions_output:
+            i = i.strip()
+            try:
+                i = i.split('. ')
+                questions_lst.append(i[1])
+            except:
+                pass
+        print(questions_lst)
+        
+        # update question list 
+        questions = questions + questions_lst
+        # add some dsa and reasoning questions
+    except:
+        get_rolespecific_questions(attempt+1)
+
+# function to bring role specific questions
+def get_rolespecific_questions(attempt=0):
     global questions
     # create model to predict
     if attempt > 2:
         return
     try:
-        llm = OpenAI(openai_api_key=apiKey)
+        llm = OpenAI(openai_api_key=apiKey.get())
         # Prompt template for getting questions
-        prompt_search_questions = PromptTemplate.from_template("Provide minimum 2 interview questions for {role} for {experience} candidate?")
+        prompt_search_questions = PromptTemplate.from_template("Provide minimum 13 interview questions for {role} for {experience} candidate?")
         # format template to final prompt
-        questions = prompt_search_questions.format(role = role.get(), experience = experience.get())
+        llm_questions = prompt_search_questions.format(role = role.get(), experience = experience.get())
         # Getting output of prompt 
-        questions_output = llm.predict(questions)
+        questions_output = llm.predict(llm_questions)
 
         # convert questions from string to list
         questions_output = questions_output.strip()
@@ -60,14 +90,16 @@ def get_questions(attempt=0):
         # remove check_internet_mic => instrction screeen 
         check_internet_mic.forget()
         # update question list 
-        questions = questions_lst
+        questions = questions + questions_lst
+        # add some dsa and reasoning questions
+
         # show new frame for question page 
         f2.pack(fill=BOTH)
         # call next question function to render question
         update_status("Ready to go")
         next_question()
     except:
-        get_questions(attempt+1)
+        get_rolespecific_questions(attempt+1)
 
 # this function convert text to speech 
 def text_to_speech(text, try_count = 0):
@@ -92,7 +124,7 @@ def score_answer(question_number, answer, attempt=0):
     
     try:
         # create model to predict
-        chat = ChatOpenAI(openai_api_key=apiKey)
+        chat = ChatOpenAI(openai_api_key=apiKey.get())
 
         # Prompt templates to get score of answer
         system_template = (
@@ -166,7 +198,6 @@ def record_audio():
             print("Could not request results; {0}".format(e))
         except sr.UnknownValueError:
             print("unknown error occurred")
-
 
 # this function render new question
 def next_question():
@@ -268,16 +299,34 @@ def mic_clicked(temp = None):
         recording_btn['state'] = "disabled"
         mic_lable.unbind("<Button-1>")
 
+# check whether api key is valid or not 
+def is_api_key_valid():
+    try:
+        openai.api_key = apiKey.get()
+        response = openai.Completion.create(
+            engine="davinci",
+            prompt="This is a test.",
+            max_tokens=5,
+        )
+    except:
+        return False
+    else:
+        return True
+
 # function to start interview 
 def start_interview():
+    if(apiKey.get().strip() == ""):
+        update_status("API key is not provided")
+        return
     # calling this function with thread to avoid freezing of screen
     start_button["state"] = "disabled"
     update_status("Please wait, checking internet and microphone (this may take 2-3 min)")
     threading.Thread(target=check_speed_mic).start()
+    threading.Thread(target=get_general_questions).start()
 
 def move_forward():
     update_status("Please wait, finding the right interviewer for you")
-    threading.Thread(target=get_questions).start()
+    threading.Thread(target=get_rolespecific_questions).start()
 
 def checkMic():
     try:
@@ -321,6 +370,10 @@ def check_speed_mic():
         update_status("Your internet connection is either dead or your speed is too low")
         return
     
+    if(is_api_key_valid() == False):
+        update_status("Invalid API key")
+        return
+    
     Label(check_internet_mic,text="Instructions",font="calibre 20 bold",fg="black").pack(ipady=5)
     Label(check_internet_mic,text="1.) You can start giving answer after the interviewer speak question",font="calibre 15 bold",fg="black",wraplength=1100).pack(ipady=3)
     Label(check_internet_mic,text="2.) You can give your answer either by speaking or by writing",font="calibre 15 bold",fg="black",wraplength=1100).pack(ipady=3)
@@ -345,6 +398,7 @@ if __name__ == "__main__":
     # define Variables 
     role = StringVar(value=roles[0])
     experience = StringVar(value="Fresher")
+    apiKey = StringVar(value="")
     user_question = StringVar(value="nothing")
     user_answer = StringVar(value="")
     record_users_answer = BooleanVar(value=False)
@@ -362,7 +416,7 @@ if __name__ == "__main__":
     created_by.pack()
     Label(root,text="",font="calibre 5 bold").pack()
 
-    # Creating frame to hold all content. We will update this Frame when needed.
+    # Creating frame to hold all content of home page
     f1 = Frame(root)
     f1.pack(fill=BOTH)
 
@@ -387,6 +441,11 @@ if __name__ == "__main__":
     Radiobutton(temp_frame,text='Intermediate', font="cosmicsansms 15", width=20 , padx=15, variable=experience, value="Intermediate").pack(side=LEFT, ipady=15)
     Radiobutton(temp_frame,text='Senior', font="cosmicsansms 15", width=20 , padx=15, variable=experience, value="Senior").pack(side=LEFT, ipady=15)
 
+    api_key_frame = Frame(f1)
+    api_key_frame.pack(side=TOP,ipady=15)
+    Label(api_key_frame,text="Enter OpenAI API Key : ",font="cosmicsansms 18").pack(side=LEFT)
+    Entry(api_key_frame,textvariable=apiKey,font="cosmicsansms 18").pack(side=LEFT)
+    Label(f1,text="",font="cosmicsansms 5").pack()
     # Button to start interview 
     start_button = Button(f1,text="Start Interview",command=start_interview,font="calibre 17 bold")
     start_button.pack()
@@ -436,7 +495,7 @@ if __name__ == "__main__":
     feedback_next_btn = Button(temp_f3,text="Next Question",command=next_feedback,font="calibre 17 bold",width=18,background='#b3fbfc')
     feedback_next_btn.pack(side=RIGHT)
 
-    Button(f3,text="Home Page",command=quit,font="calibre 17 bold",width=20,background='#f3b5ff').pack(side=TOP)
+    # Button(f3,text="Home Page",command=quit,font="calibre 17 bold",width=20,background='#f3b5ff').pack(side=TOP)
     Label(f3,text="").pack(pady=2)
     Button(f3,text="Quit",command=quit,font="calibre 17 bold",width=20,bg='#f3b5ff').pack(side=TOP)
 

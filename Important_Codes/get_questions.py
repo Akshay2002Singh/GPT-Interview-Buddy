@@ -32,8 +32,12 @@ def get_questions(role, experience):
     questions_output = questions_output.split("\n")
     questions_lst = []
     for i in questions_output:
-        i = i.split('. ')
-        questions_lst.append(i[1])
+        i = i.strip()
+        try:
+            i = i.split('. ')
+            questions_lst.append(i[1])
+        except:
+            pass
 
     # write questions in josn file
     with open("questions.json",'w') as f:
