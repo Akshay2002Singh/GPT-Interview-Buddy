@@ -16,6 +16,7 @@ from playsound import playsound
 import os
 import time
 import json
+import speedtest
 
 # some global variables
 roles = ["Python Developer","Frontend Developer","Django Developer","MERN Developer","MEAN Developer","Android Developer","Software Developer","Ethical Hacker","Database Administrator", " Network Engineer"]
@@ -37,7 +38,7 @@ with open("ApiKey.txt",'r') as f:
 def get_questions(attempt=0):
     global questions
     # create model to predict
-    if attempt > 5:
+    if attempt > 2:
         return
     try:
         llm = OpenAI(openai_api_key=apiKey)
@@ -56,13 +57,14 @@ def get_questions(attempt=0):
             i = i.split('. ')
             questions_lst.append(i[1])
         print(questions_lst)
-        # remove f1 => home screeen 
-        f1.forget()
+        # remove check_internet_mic => instrction screeen 
+        check_internet_mic.forget()
         # update question list 
         questions = questions_lst
         # show new frame for question page 
         f2.pack(fill=BOTH)
         # call next question function to render question
+        update_status("Ready to go")
         next_question()
     except:
         get_questions(attempt+1)
@@ -169,11 +171,18 @@ def record_audio():
 # this function render new question
 def next_question():
     global current_question
+    global consider_textarea_answer
+    update_status("Get Ready for question")
+    if(consider_textarea_answer.get()):
+        user_answer.set(textarea.get(1.0,END))
     if current_question <= len(questions) and current_question > 0:
         threading.Thread(target=score_answer, args=[current_question-1,user_answer.get(),]).start()
     
     # print(user_answer.get())
     user_answer.set("")
+    textarea.delete(1.0,END)
+    f2_checkbox["state"] = "normal"
+    consider_textarea_answer.set(False)
     if current_question<len(questions):
         # hide mic and next btn 
         mic_lable.forget()
@@ -193,12 +202,16 @@ def next_question():
         space1.pack()
         next_button.pack()
         next_button["state"] = "normal"
+
+        update_status("Waiting for your response")
     else:
         show_result()
 
 def show_result():
+    update_status("Wait until your report is getting ready")
     while(len(answer_feedback.keys()) != len(questions)):
         time.sleep(1)
+    update_status("Your Report is ready")
     global current_question
     current_question = 0
     f2.forget()
@@ -238,15 +251,18 @@ def check_and_call_next():
 # this function handle mic click 
 def mic_clicked(temp = None):
     if recording_btn.cget('text') == "Start Recording":
+        update_status("Recording...")
         # set flag to true, to start recording 
         record_users_answer.set(True)
         recording_btn.config(text="Stop Recording", background='#d93b3b')
-        # disable next btn 
+        # disable next btn and consider text area checkbox
         next_button["state"] = "disabled"
+        f2_checkbox["state"] = "disabled"
         # call record and convert functions
         threading.Thread(target=record_audio).start()
         threading.Thread(target=process_speech_to_text_queue).start()
     else:
+        update_status("Evaluating your answer")
         recording_btn.config(text="Start Recording", background='#2c70e6')
         record_users_answer.set(False)
         recording_btn['state'] = "disabled"
@@ -254,17 +270,77 @@ def mic_clicked(temp = None):
 
 # function to start interview 
 def start_interview():
-    global mic
     # calling this function with thread to avoid freezing of screen
     start_button["state"] = "disabled"
+    update_status("Please wait, checking internet and microphone (this may take 2-3 min)")
+    threading.Thread(target=check_speed_mic).start()
+
+def move_forward():
+    update_status("Please wait, finding the right interviewer for you")
     threading.Thread(target=get_questions).start()
+
+def checkMic():
+    try:
+        obj = sr.Microphone()
+    except:
+        return False
+    return True
+
+def check_internet(attempt=0):
+    if(attempt>1):
+        return 0
+    try:
+        st = speedtest.Speedtest()
+        speed = st.download()/(1024*1024)
+        speed = str(speed)
+        speed = speed[:speed.find(".")+2]
+        speed = float(speed)
+        return speed
+    except:
+        return check_internet(attempt+1)
+
+def check_speed_mic():
+    download = check_internet()
+    mic_working = checkMic()
+
+    created_by.forget()
+    f1.forget()
+
+    for widget in check_internet_mic.winfo_children():
+            widget.destroy()
+    check_internet_mic.pack()
+    Label(check_internet_mic,text=f"Your download speed is {download} Mbps",font="calibre 16 bold",fg="black").pack(ipady=5)
+    if(mic_working):
+        Label(check_internet_mic,text="Your microphone is working properly",font="calibre 16 bold",fg="black").pack(ipady=5)
+    else:
+        Label(check_internet_mic,text="Your default microphone is not available, check the system settings",font="calibre 16 bold",fg="black").pack(ipady=5,)
+        update_status("Come back later after fixing mic")
+        return
+    
+    if(download<1):
+        update_status("Your internet connection is either dead or your speed is too low")
+        return
+    
+    Label(check_internet_mic,text="Instructions",font="calibre 20 bold",fg="black").pack(ipady=5)
+    Label(check_internet_mic,text="1.) You can start giving answer after the interviewer speak question",font="calibre 15 bold",fg="black",wraplength=1100).pack(ipady=3)
+    Label(check_internet_mic,text="2.) You can give your answer either by speaking or by writing",font="calibre 15 bold",fg="black",wraplength=1100).pack(ipady=3)
+    Label(check_internet_mic,text="3.) Use textarea to write answer only when needed",font="calibre 15 bold",fg="black",wraplength=1100).pack(ipady=3)
+    Label(check_internet_mic,text="4.) When you are using the text area to give an answer, tick the checkbox",font="calibre 15 bold",fg="black",wraplength=1100).pack(ipady=3)
+    Label(check_internet_mic,text="",font="calibre 15 bold").pack()
+    
+    Button(check_internet_mic,text="Move Forward",command=move_forward,font="calibre 17 bold",width=18,background='#b3fbfc').pack()
+    update_status("You are ready to go")
+    
+def update_status(msg):
+    status.set(f"Status : {msg}")
+
 
 if __name__ == "__main__":
     root = Tk()
     # setup basic window
     root.title("GPT Interview Buddy")
-    root.geometry("850x650")
-    root.minsize(800,600)
+    root.geometry("1200x750")
+    root.minsize(1150,700)
 
     # define Variables 
     role = StringVar(value=roles[0])
@@ -272,6 +348,8 @@ if __name__ == "__main__":
     user_question = StringVar(value="nothing")
     user_answer = StringVar(value="")
     record_users_answer = BooleanVar(value=False)
+    consider_textarea_answer = BooleanVar(value=False)
+    status = StringVar(value="Status : Ready to go")
     # Variable of result page 
     resultPage_current_score = StringVar(value="")
     resultPage_total_score = StringVar(value="")
@@ -280,8 +358,9 @@ if __name__ == "__main__":
 
     # Main headings 
     Label(root,text="GPT Interview Buddy",font="calibre 30 bold").pack()
-    Label(root,text="Created By Rapid Coders",font="calibre 15 normal",fg="#ff0066").pack()
-    Label(root,text="",font="calibre 10 bold").pack()
+    created_by = Label(root,text="Created By Rapid Coders",font="calibre 15 normal",fg="#ff0066")
+    created_by.pack()
+    Label(root,text="",font="calibre 5 bold").pack()
 
     # Creating frame to hold all content. We will update this Frame when needed.
     f1 = Frame(root)
@@ -312,12 +391,28 @@ if __name__ == "__main__":
     start_button = Button(f1,text="Start Interview",command=start_interview,font="calibre 17 bold")
     start_button.pack()
 
+    # check and show internet and mic status and show instructions
+    check_internet_mic = Frame(root)
 
     # this will be rendered later
     # frame 2 is second page(question page)
     f2 = Frame(root)
     # lable to show question
-    Label(f2,textvariable=user_question,padx=15,font="calibre 15 normal",wraplength=750).pack()
+    Label(f2,textvariable=user_question,padx=15,font="calibre 15 normal",wraplength=1100).pack()
+    # show input box as an option to write answer
+    textarea_frame = Frame(f2)
+    textarea_frame.pack(ipady=8)
+    textarea=Text(textarea_frame,font=("Ariel",14,"normal"),height=7,width=70)
+    textarea.pack(side=LEFT)
+    # adding Scrollbar to textarea
+    Scroll =Scrollbar(textarea_frame)
+    Scroll.pack(side=RIGHT,fill=Y)
+    Scroll.config(command=textarea.yview)
+    textarea.config(yscrollcommand=Scroll.set)
+    # show check box to switch between text area and mic 
+    # if checkbox is ticked then answer written in text area will be considered
+    f2_checkbox = Checkbutton(f2,text="Consider the answer given in textarea instead of audio",variable=consider_textarea_answer,font="calibre 15 normal")
+    f2_checkbox.pack()
     # show mic image and set onclick event
     mic = ImageTk.PhotoImage(Image.open('mic.png'), height=20, width= 20)
     mic_lable = Label(f2, image=mic)
@@ -330,9 +425,9 @@ if __name__ == "__main__":
     # frame 3 is third page(Result page)
     f3 = Frame(root)
     Label(f3,textvariable=resultPage_total_score,font="calibre 22 bold").pack(pady=5)
-    Label(f3,textvariable=resultPage_question, font="calibre 17 bold" ,wraplength=750).pack(pady=5)
+    Label(f3,textvariable=resultPage_question, font="calibre 17 bold" ,wraplength=1100).pack(pady=5)
     Label(f3,textvariable=resultPage_current_score,font="calibre 14 bold").pack()
-    Label(f3,textvariable=resultPage_feedback,font="calibre 14 normal",wraplength=750).pack(pady=5)
+    Label(f3,textvariable=resultPage_feedback,font="calibre 14 normal",wraplength=1100).pack(pady=5)
     temp_f3 = Frame(f3)
     temp_f3.pack(pady=20)
     feedback_previous_btn =  Button(temp_f3,text="Previous Question",command=previous_feedback,font="calibre 17 bold",width=18,background='#b3fbfc')
@@ -345,4 +440,8 @@ if __name__ == "__main__":
     Label(f3,text="").pack(pady=2)
     Button(f3,text="Quit",command=quit,font="calibre 17 bold",width=20,bg='#f3b5ff').pack(side=TOP)
 
+    # status bar 
+    status_frame = Frame(root,bg="#7ae9fa",relief='solid',border=2)
+    status_frame.pack(side=BOTTOM,fill=X)
+    Label(status_frame,textvariable=status,font="calibre 18 bold",bg="#7ae9fa").pack(side=LEFT, ipadx=10,ipady=10)
     root.mainloop()
