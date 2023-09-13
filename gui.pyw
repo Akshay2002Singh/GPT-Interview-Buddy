@@ -18,9 +18,10 @@ import os
 import time
 import json
 import speedtest
+import webbrowser
 
 # some global variables
-roles = ["Python Developer","Frontend Developer","Django Developer","MERN Developer","MEAN Developer","Android Developer","Software Developer","Ethical Hacker","Database Administrator", " Network Engineer"]
+roles = ["Python Developer","Frontend Developer","Django Developer","React Developer","MERN Developer","Android Developer","MEAN Developer","Software Developer","Java Developer","Ethical Hacker","Game Developer", " Network Engineer","Database Administrator"," Machine Learning Engineer"]
 current_question = 0
 questions = ["Tell me something about Yourself?"]
 answer_feedback = {}
@@ -238,6 +239,97 @@ def next_question():
     else:
         show_result()
 
+def download_report():
+    questions_cards = ''
+    for i in range(len(questions)):
+        questions_cards += f'''
+        <div class="question_card">
+                <div class="question"><span>Question {i+1}:</span>  {questions[i]}</div>
+                <div class="score"><span>Score:</span> {user_score_obj[i]}/10</div>
+                <div class"feedback"><span>Feedback:</span> {answer_feedback[i]}</div>
+            </div>
+    ''' 
+        
+    report = '''
+        <!DOCTYPE html>
+        <html lang="en">
+
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Report Page</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Abyssinica+SIL&family=Montserrat&family=Poppins:wght@300;400;500&display=swap');
+
+                * {
+                    margin: 0px;
+                    padding: 0px;
+                    box-sizing: border-box;
+                    font-family: 'Poppins', sans-serif;
+                }
+                body {
+                    background-color: #171717;
+                }
+                .text-center {
+                    text-align: center;
+                }
+                .container {
+                    max-width: 1100px;
+                    margin: auto;
+                    background-color: rgb(92, 213, 209);
+                    padding: 10px 20px;
+                }
+                .top-bar {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                    margin: 10px 0px;
+                    font-size: 20px;
+                    font-weight: 500;
+                }
+                .top-bar span{
+                    font-weight: 600;
+                }
+                .mr-20 {
+                    padding-right: 20px;
+                }
+                #ques_container {
+                    margin-top: 20px;
+                }
+                .question_card {
+                    margin-bottom: 30px;
+                    font-size: 18px;
+                }
+                .question_card span{
+                    font-weight: 500;
+                }
+            </style>
+        </head>
+        '''
+
+    report += f'''
+        <body>
+            <div class="container">
+                <h1 class="text-center">GPT Interview Buddy</h1>
+                <h2 class="text-center">Total Score: {user_score}/{10*len(questions)}</h2>
+                <div class="top-bar">
+                    <div class="mr-20"><span>Role:</span> {role.get()}</div>
+                    <div><span>Experience:</span> {experience.get()}</div>
+                </div>
+                <div id="ques_container">
+                    {questions_cards}
+                </div>
+                <div class="text-center">Created by Rapid Coders</div>
+            </div>
+        </body>
+
+        </html>
+    '''
+
+    with open("User_Report.html",'w') as f:
+        f.write(report)
+
+
 def show_result():
     update_status("Wait until your report is getting ready")
     while(len(answer_feedback.keys()) != len(questions)):
@@ -301,6 +393,7 @@ def mic_clicked(temp = None):
 
 # check whether api key is valid or not 
 def is_api_key_valid():
+    update_status("Checking API Key")
     try:
         openai.api_key = apiKey.get()
         response = openai.Completion.create(
@@ -320,6 +413,7 @@ def start_interview():
         return
     # calling this function with thread to avoid freezing of screen
     start_button["state"] = "disabled"
+    api_key_entry.configure(state="disabled")
     update_status("Please wait, checking internet and microphone (this may take 2-3 min)")
     threading.Thread(target=check_speed_mic).start()
     threading.Thread(target=get_general_questions).start()
@@ -339,7 +433,7 @@ def check_internet(attempt=0):
     if(attempt>1):
         return 0
     try:
-        st = speedtest.Speedtest()
+        st = speedtest.Speedtest(secure=True)
         speed = st.download()/(1024*1024)
         speed = str(speed)
         speed = speed[:speed.find(".")+2]
@@ -355,8 +449,6 @@ def check_speed_mic():
     created_by.forget()
     f1.forget()
 
-    for widget in check_internet_mic.winfo_children():
-            widget.destroy()
     check_internet_mic.pack()
     Label(check_internet_mic,text=f"Your download speed is {download} Mbps",font="calibre 16 bold",fg="black").pack(ipady=5)
     if(mic_working):
@@ -387,13 +479,16 @@ def check_speed_mic():
 def update_status(msg):
     status.set(f"Status : {msg}")
 
+# function to open browser
+def callback(url):
+   webbrowser.open_new_tab(url)
 
 if __name__ == "__main__":
     root = Tk()
     # setup basic window
     root.title("GPT Interview Buddy")
-    root.geometry("1200x750")
-    root.minsize(1150,700)
+    root.geometry("1200x780")
+    root.minsize(1150,740)
 
     # define Variables 
     role = StringVar(value=roles[0])
@@ -411,10 +506,10 @@ if __name__ == "__main__":
     resultPage_feedback = StringVar(value="")
 
     # Main headings 
-    Label(root,text="GPT Interview Buddy",font="calibre 30 bold").pack()
+    Label(root,text="GPT Interview Buddy",font="calibre 25 bold").pack()
     created_by = Label(root,text="Created By Rapid Coders",font="calibre 15 normal",fg="#ff0066")
     created_by.pack()
-    Label(root,text="",font="calibre 5 bold").pack()
+    Label(root,text="",font="calibre 2 bold").pack()
 
     # Creating frame to hold all content of home page
     f1 = Frame(root)
@@ -434,19 +529,24 @@ if __name__ == "__main__":
             i+=1
             
     # Creating frame to insert experience options
-    temp_frame = Frame(f1, pady=15)
+    temp_frame = Frame(f1, pady=10)
     temp_frame.pack(fill=Y)
     Label(temp_frame,text="Select Your Experience",font="calibre 20 bold",fg="black" ,bg='#bcecf5', relief='sunken', pady=2).pack(side=TOP, ipady=5, ipadx=8)
-    Radiobutton(temp_frame,text='Fresher', font="cosmicsansms 15", width=20 , padx=15, variable=experience, value="Fresher").pack(side=LEFT, ipady=15)
-    Radiobutton(temp_frame,text='Intermediate', font="cosmicsansms 15", width=20 , padx=15, variable=experience, value="Intermediate").pack(side=LEFT, ipady=15)
-    Radiobutton(temp_frame,text='Senior', font="cosmicsansms 15", width=20 , padx=15, variable=experience, value="Senior").pack(side=LEFT, ipady=15)
+    Radiobutton(temp_frame,text='Fresher', font="cosmicsansms 15", width=20 , padx=15, variable=experience, value="Fresher").pack(side=LEFT, ipady=10)
+    Radiobutton(temp_frame,text='Intermediate', font="cosmicsansms 15", width=20 , padx=15, variable=experience, value="Intermediate").pack(side=LEFT, ipady=10)
+    Radiobutton(temp_frame,text='Senior', font="cosmicsansms 15", width=20 , padx=15, variable=experience, value="Senior").pack(side=LEFT, ipady=10)
 
     api_key_frame = Frame(f1)
-    api_key_frame.pack(side=TOP,ipady=15)
+    api_key_frame.pack(side=TOP,ipady=10)
     Label(api_key_frame,text="Enter OpenAI API Key : ",font="cosmicsansms 18").pack(side=LEFT)
-    Entry(api_key_frame,textvariable=apiKey,font="cosmicsansms 18").pack(side=LEFT)
-    Label(f1,text="",font="cosmicsansms 5").pack()
+    api_key_entry = Entry(api_key_frame,textvariable=apiKey,font="cosmicsansms 18")
+    api_key_entry.pack(side=LEFT)
+    #Create a Label to display the link
+    api_link = Label(f1, text="Don't have API Key? Click here",font=('Helveticabold', 15), fg="blue", cursor="hand2")
+    api_link.pack()
+    api_link.bind("<Button-1>", lambda e: callback("https://platform.openai.com/account/api-keys"))
     # Button to start interview 
+    Label(f1,text="",font="cosmicsansms 10").pack()
     start_button = Button(f1,text="Start Interview",command=start_interview,font="calibre 17 bold")
     start_button.pack()
 
@@ -495,7 +595,7 @@ if __name__ == "__main__":
     feedback_next_btn = Button(temp_f3,text="Next Question",command=next_feedback,font="calibre 17 bold",width=18,background='#b3fbfc')
     feedback_next_btn.pack(side=RIGHT)
 
-    # Button(f3,text="Home Page",command=quit,font="calibre 17 bold",width=20,background='#f3b5ff').pack(side=TOP)
+    Button(f3,text="Download Report",command=download_report,font="calibre 17 bold",width=20,background='#f3b5ff').pack(side=TOP)
     Label(f3,text="").pack(pady=2)
     Button(f3,text="Quit",command=quit,font="calibre 17 bold",width=20,bg='#f3b5ff').pack(side=TOP)
 

@@ -1,7 +1,7 @@
 import speedtest
 
 def check_upload_download():
-    st = speedtest.Speedtest(timeout=1)
+    st = speedtest.Speedtest(secure=True)
     print(st.download())  
     print(st.upload())
 
