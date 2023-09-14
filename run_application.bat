@@ -6,5 +6,5 @@ echo "Activating virtual environment..."
 echo.
 call env\Scripts\activate
 
-echo "Running Application"
+echo "Don't close this terminal while using application"
 python gui.pyw
