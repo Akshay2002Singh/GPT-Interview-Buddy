@@ -8,7 +8,6 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
-import openai
 import speech_recognition as sr
 import queue
 import threading
@@ -395,12 +394,8 @@ def mic_clicked(temp = None):
 def is_api_key_valid():
     update_status("Checking API Key")
     try:
-        openai.api_key = apiKey.get()
-        response = openai.Completion.create(
-            engine="davinci",
-            prompt="This is a test.",
-            max_tokens=5,
-        )
+        llm = OpenAI(openai_api_key=apiKey.get())
+        response = llm.predict("Are you ok")
     except:
         return False
     else:
