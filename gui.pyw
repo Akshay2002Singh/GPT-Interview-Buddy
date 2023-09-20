@@ -1,4 +1,5 @@
 from tkinter import *
+from tkinter import messagebox
 from PIL import ImageTk,Image
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
@@ -25,6 +26,7 @@ current_question = 0
 questions = ["Tell me something about Yourself?"]
 answer_feedback = {}
 user_score_obj = {}
+user_answer_obj = {}
 user_score = 0
 # queue to store speech recognition object and speech clips
 speech_queue = queue.SimpleQueue()
@@ -152,6 +154,7 @@ def score_answer(question_number, answer, attempt=0):
         user_score += int(score_feedback["score"])
         answer_feedback[question_number] = score_feedback['feedback']
         user_score_obj[question_number] = score_feedback['score']
+        user_answer_obj[question_number] = answer
     except:
         score_answer(question_number,answer,attempt+1)
     
@@ -245,6 +248,7 @@ def download_report():
         <div class="question_card">
                 <div class="question"><span>Question {i+1}:</span>  {questions[i]}</div>
                 <div class="score"><span>Score:</span> {user_score_obj[i]}/10</div>
+                <div class"feedback"><span>User Answer:</span> {user_answer_obj[i]}</div>
                 <div class"feedback"><span>Feedback:</span> {answer_feedback[i]}</div>
             </div>
     ''' 
@@ -327,6 +331,7 @@ def download_report():
 
     with open("User_Report.html",'w') as f:
         f.write(report)
+    messagebox.showinfo("Report Downloaded", "Your Report is downloaded as 'User_Report' in current folder")
 
 
 def show_result():
